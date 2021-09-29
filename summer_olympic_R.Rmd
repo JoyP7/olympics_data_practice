@@ -211,7 +211,7 @@ ggplot(us_china, aes(x = Year, y = Total)) +
   facet_wrap(~Country)
 
 ```
-## Top 50 gold medals from 1984
+## Top 30 gold medals from 1984
 
 ```{r}
 top_medals <- summer_medals %>% 
