@@ -1,0 +1,367 @@
+---
+title: "SQL Practice_Olympic Data"
+output: html_document
+---
+
+```{r}
+library(DBI)
+```
+
+```{r}
+install.packages("dplyr", "RSQLite")
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(dbplyr)
+library(readr)
+library(here)
+```
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), dbname = ":memory:")
+dbWriteTable(con, "summer_medals", read.csv("/Users/joypham/LearningData/LearningR/olympics/summer.csv"))
+```
+
+## Get first 6 rows of the file
+```{r}
+summer_medals <- read_csv("/Users/joypham/LearningData/LearningR/olympics/summer.csv", col_names = TRUE)
+
+head(summer_medals)
+```
+
+ A quick sneak peak a the file structure
+ 
+```{r}
+str(summer_medals)
+```
+
+Get the distinct disciplines
+
+```{sql connection=con}
+SELECT DISTINCT discipline
+FROM summer_medals
+```
+## Gold in volleyball
+
+Volleyball made its first appeared as an Olympic game in 1964.
+
+First, a "stupid" query, given that I didn't know how many members in a volleyball team.
+
+```{sql connection=con}
+ WITH sub AS (
+  SELECT year,
+       country,
+       gender,
+       COUNT(*) OVER(PARTITION BY country, gender ORDER BY year) AS winning_times
+  FROM summer_medals
+  WHERE discipline = "Volleyball" AND
+      medal = "Gold"
+  GROUP BY year, country, gender)
+  
+SELECT country, gender,
+       MAX(winning_times) AS total_winning
+FROM sub
+GROUP BY country, Gender
+       
+```
+Then, a more elegant and simpler query
+
+```{sql connection=con}
+ WITH sub AS(
+  SELECT  country, gender,
+         COUNT(*)/12 AS gold_count
+  FROM summer_medals
+  WHERE discipline = "Volleyball" AND
+      medal = "Gold"
+  GROUP BY country, gender
+  ORDER BY gold_count DESC, country ASC)
+ 
+ SELECT country, gender, SUM(gold_count) AS winning_times
+ FROM sub
+ GROUP BY country, gender
+```
+
+## Medals in baseball
+
+Who got the first prize in baseball?
+
+```{sql connection=con}
+WITH sub AS (
+  SELECT country,
+         COUNT(*)/20 AS gold_count
+  FROM summer_medals
+  WHERE discipline = "Baseball" AND medal = "Gold"
+  GROUP BY country
+)
+
+SELECT country,
+       SUM(gold_count) AS winning_times
+FROM sub
+GROUP BY country
+```
+
+More details about the countries that were able to snatch a medal in baseball in each Olympic in 1992-2008
+
+```{sql connection=con}
+
+  SELECT year,
+         country,
+         medal,
+         COUNT(*) OVER(PARTITION BY medal, country
+                  ORDER BY year ASC) AS times
+  FROM summer_medals
+  WHERE discipline = "Baseball"
+  GROUP BY year, country, medal
+  ORDER BY year ASC
+
+```
+## Swimming giants
+Who ruled the blue races?
+Ladies first
+
+```{sql connection=con}
+  WITH sub AS (
+    SELECT
+         country,
+         COUNT(medal) AS total_gold
+  FROM summer_medals
+  WHERE discipline = "Swimming" AND
+        medal = "Gold" AND
+        gender = "Women"
+  GROUP BY country, Gender) 
+  
+SELECT country, total_gold,
+       DENSE_RANK() OVER(ORDER BY total_gold DESC) AS ranking
+FROM sub
+LIMIT 10
+```
+Then, gentlemen
+
+```{sql connection=con}
+  WITH sub AS (
+    SELECT
+         country,
+         COUNT(medal) AS total_gold
+  FROM summer_medals
+  WHERE discipline = "Swimming" AND
+        medal = "Gold" AND
+        gender = "Men"
+  GROUP BY country, Gender) 
+  
+SELECT country, total_gold,
+       DENSE_RANK() OVER(ORDER BY total_gold DESC) AS ranking
+FROM sub
+LIMIT 10
+```
+
+## Assigning row number to the data set
+
+```{sql connection=con}
+SELECT 
+*,
+-- Assign numbers to each row
+ROW_NUMBER() OVER() AS Row_N 
+FROM summer_medals
+ORDER BY Row_N ASC;
+```
+
+## Numbering Olympic games in ascending order
+
+```{sql connection=con}
+SELECT
+  year,
+  ROW_NUMBER() OVER() AS Row_N 
+FROM (
+  SELECT DISTINCT year
+  FROM summer_medals
+  ORDER BY year ASC
+) AS year
+ORDER BY year ASC;
+```
+
+## Find the total medals each year
+Note: SQLite cannot perform `ROLLUP()`
+
+```{sql connection=con}
+SELECT year, 
+       medal,
+       COUNT(*) AS total
+FROM summer_medals
+GROUP BY year, medal
+ORDER BY year
+```
+##Ranking Olympic athletes by medals
+
+```{sql connection=con}
+WITH sub AS (
+  SELECT athlete,
+         country,
+         discipline,
+         COUNT(*) AS medals
+  FROM summer_medals
+  GROUP BY athlete
+  ORDER BY medals DESC
+)
+
+SELECT athlete,
+       country,
+       discipline,
+       medals,
+       DENSE_RANK() OVER(ORDER BY medals DESC) AS medals_rank
+FROM sub
+ORDER BY medals_rank;
+```
+##Reigning 1500m Freestyle champions
+
+```{sql connection=con}
+WITH champions AS (
+  SELECT 
+    athlete AS champion,
+    year,
+    country
+  FROM summer_medals
+  WHERE discipline = "Swimming"
+  AND
+    event = "1500M Freestyle" AND
+    gender = "Men" AND
+    medal = "Gold"
+)
+
+SELECT year,
+       country,
+       champion,
+       LAG(champion, 1) OVER(ORDER BY year ASC) AS last_champion
+FROM champions
+ORDER BY year ASC;
+```
+## Marathon and high jump after the Cold War
+
+```{sql connection=con}
+ 
+  SELECT event, country, gender,
+         COUNT(*) AS gold_count
+  FROM summer_medals
+  WHERE year > 1964 AND
+        discipline = "Athletics" AND
+        event IN ("Marathon", "High Jump") AND
+        medal = "Gold"
+ GROUP BY event, country, gender
+ ORDER BY gold_count DESC, country ASC
+  
+
+```
+
+## Next city in line
+
+```{sql connection=con}
+WITH sub AS (
+  SELECT year, city
+  FROM summer_medals
+  GROUP BY year, city
+)
+
+SELECT year, city,
+       LEAD(city,1) OVER(ORDER BY year) AS next_city
+FROM sub
+ORDER BY year ASC
+```
+
+## Last Judo champion after Cold War (- 60 KG)
+
+```{sql connection=con}
+WITH sub AS (
+  SELECT year, country
+  FROM summer_medals
+  WHERE discipline = "Judo" AND
+        event = "- 60 KG" AND
+        gender = "Men" AND
+        medal = "Gold")
+        
+SELECT year, country,
+       LAST_VALUE(country) OVER(
+         ORDER BY year ASC
+         RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_champion
+FROM sub
+ORDER BY year ASC
+```
+
+## Ranking athletes from Japan, China, and Korea
+
+```{sql connection=con}
+WITH sub AS (
+  SELECT country, athlete, discipline, COUNT(*) AS medals
+  FROM summer_medals
+  WHERE country IN ("CHN", "JPN", "KOR") AND
+        year >= 1984 AND medal = "Gold"
+  GROUP BY country, athlete, discipline
+  HAVING COUNT(*) > 1
+)
+
+SELECT country, athlete, discipline, medals,
+       DENSE_RANK() OVER(PARTITION BY country ORDER BY medals DESC) AS ranking
+FROM sub
+ORDER by ranking ASC
+```
+## Total medals from 1984 (JPN, KOR, CHN)
+
+Medals earned by year
+
+```{sql connection=con}
+  SELECT year, country,
+         medal,
+         COUNT(*) AS medal_count
+  FROM summer_medals
+  WHERE country IN ("JPN", "KOR", "CHN") AND
+        year >= 1984
+  GROUP BY year, country, medal
+  ORDER BY year ASC
+
+```
+Total earned medals from 1984
+
+```{sql connection=con}
+  WITH sub AS(
+  SELECT year, country,
+         medal,
+         COUNT(*) AS medal_count
+  FROM summer_medals
+  WHERE country IN ("JPN", "KOR", "CHN") AND
+        year >= 1984
+  GROUP BY year, country, medal
+  ORDER BY year ASC)
+
+SELECT country, medal,
+       SUM(medal_count) AS total
+FROM sub
+GROUP BY country, medal
+```
+
+
+```{sql connection=con}
+WITH sub1 AS(
+  SELECT year,
+         COUNT(*) AS gold_count
+  FROM summer_medals
+  WHERE country IN ("JPN", "KOR", "CHN") 
+        AND medal = "Gold"
+        AND year >= 1984
+  GROUP BY year
+),
+sub2 AS (
+  SELECT year, COUNT(*) AS total
+  FROM summer_medals
+  WHERE medal = "Gold" AND year >=1984
+  GROUP BY year
+  ORDER BY year ASC
+)
+
+  SELECT sub1.year, sub1.gold_count, sub2.total
+  FROM sub1
+  INNER JOIN sub2
+  ON sub1.year = sub2.year
+  ORDER BY sub1.year ASC
+
+```
+

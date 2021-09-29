@@ -1,0 +1,241 @@
+---
+title: "Summer Olympic medals"
+output: html_document
+---
+
+##Setup
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(readr)
+library(ggplot2)
+```
+```{r}
+# Install viridis color palette
+install.packages("viridis")
+library("viridis")
+```
+
+Loading the data set
+
+```{r}
+summer_medals <- read_csv("/Users/joypham/LearningData/LearningR/olympics/summer.csv", col_names = TRUE)
+```
+
+```{r}
+head(summer_medals)
+```
+
+#Gold in volleyball
+
+```{r}
+volleyball_gold <- summer_medals %>% 
+  group_by(Country, Gender) %>% 
+  filter(Discipline == "Volleyball", Medal == "Gold") %>% 
+  summarize(Gold_count = n()/12)
+
+ggplot(data = volleyball_gold) +
+         geom_point(mapping = aes(x = Gold_count, y = Country, color = Country)) +
+         labs(title = "Medals in Volleyball per gender", caption = "Data collected by The Guardian") +
+         theme_light() +
+         facet_wrap(~Gender)
+```
+
+#Medals in Baseball
+
+```{r}
+baseball <- summer_medals %>% 
+  group_by(Country, Medal) %>% 
+  filter(Discipline == "Baseball") %>% 
+  summarize(Count = round(n()/20, digits = 0))
+
+ggplot(data = baseball) +
+  geom_point(mapping = aes(x = Medal, y = Count, color = Country)) +
+  labs(title = "Medals in baseball", caption = "Data collected by The Guardian") +
+  scale_color_viridis(discrete = TRUE, option = "I") +
+  facet_wrap(~Country) +
+  theme_light()
+```
+
+```{r}
+ggplot(baseball, aes(x="", y=Count, fill= Country)) +
+  geom_bar(stat="identity", width=1, color ="white") +
+  labs(title = "Medals in baseball", caption = "Data collected by The Guardian") +
+  coord_polar(theta = "y") +
+  scale_fill_viridis(discrete = TRUE, option = "D") +
+  theme_minimal() +
+  facet_wrap(~Medal)
+```
+
+
+## Medals in swimming
+
+```{r}
+summer_medals %>% 
+  group_by(Country) %>% 
+  filter(Discipline == "Swimming", Gender == "Women", Medal == "Gold") %>% 
+  summarize(Gold = n()) %>% 
+  arrange(-Gold) %>% 
+  slice(1:10)
+```
+
+
+```{r}
+# Women
+swimming_women <- summer_medals %>% 
+  group_by(Country) %>% 
+  filter(Discipline == "Swimming", Gender == "Women", Medal == "Gold",
+         Country %in% c("USA", "AUS", "GDR", "NED", "HUN", "CHN", "GBR", "GER", "JPN", "UKR"))
+
+View(swimming_women)
+```
+
+
+```{r}
+ggplot(data = swimming_women) +
+  geom_bar(mapping = aes(x = Country, fill = Country)) +
+  labs(title = "Gold medals in swimming - Women", subtitle = "Top 10 countries", caption = "Data collected by The Guardian") +
+  scale_fill_viridis(discrete= TRUE, option= "E") +
+  theme_minimal()
+```
+```{r}
+#Men
+summer_medals %>% 
+  group_by(Country) %>% 
+  filter(Discipline == "Swimming", Gender == "Men", Medal == "Gold") %>% 
+  summarize(Gold = n()) %>% 
+  arrange(-Gold) %>% 
+  slice(1:10)
+  
+```
+
+```{r}
+#Men
+swimming_men <- summer_medals %>% 
+  group_by(Country) %>% 
+  filter(Discipline == "Swimming", Gender == "Men", Medal == "Gold",
+         Country %in% c("USA", "AUS", "HUN", "GBR", "GER", "JPN", "URS", "FRA", "EUN", "SWE"))
+
+ggplot(data = swimming_men) +
+  geom_bar(mapping = aes(x = Country, fill = Country)) +
+  labs(title = "Gold medals in swimming - Men", subtitle = "Top 10 countries", caption = "Data collected by The Guardian") +
+  scale_fill_viridis(discrete = TRUE, option = "E") +
+  theme_minimal()
+```
+
+#Total medals of JPN, KOR and, CHN
+
+```{r}
+asia_medals <- summer_medals %>% 
+  group_by(Country) %>% 
+  filter(Country %in% c("JPN", "KOR", "CHN"), Year >= 1984)
+
+ggplot(data = asia_medals) +
+  geom_bar(mapping = aes(x = Country, fill = Country)) +
+  labs(title = "Medals earned by Japan, S.Korea, and China (1984-2012)", caption = "Data collected by The Guardian") +
+  scale_fill_viridis(discrete = TRUE, option = "J") +
+  facet_wrap(~Medal)
+```
+
+## THE US Gold medals from 1984
+
+```{r}
+us_medals <- summer_medals %>%
+  group_by(Year) %>% 
+  filter(Country == "USA", Medal == "Gold", Year >= 1984) %>% 
+  summarize(Total_gold = n())
+
+ggplot(us_medals, aes(x = Year, y = Total_gold)) +
+  geom_segment(aes(x = Year, xend = Year, y = 0, yend = Total_gold), color = "deepskyblue3") +
+  geom_point(color = "red1", size = 3) +
+  scale_x_continuous(breaks = seq(1984, 2012, 4)) +
+  labs(title = "The US Gold medals from 1984", caption = "Data collected by The Guardian") +
+  theme_light() +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.x = element_blank()
+  ) +
+  ylab("Total Gold medals per year") +
+  coord_flip()
+  
+```
+
+## China Gold medals from 1984
+
+```{r}
+china_medals <- summer_medals %>% 
+  group_by(Year) %>% 
+  filter(Year >= 1984, Country == "CHN", Medal == "Gold") %>% 
+  summarize(Total = n())
+
+ggplot(china_medals, aes(x = Year, y = Total)) +
+  geom_segment(aes(x = Year, xend = Year, y = 0, yend = Total), color = "red1") +
+  geom_point(color = "gold", size = 3) +
+  scale_x_continuous(breaks = seq(1984, 2012, 4)) +
+  theme_light() +
+  labs(title = "China Gold medals from 1984", caption = "Data collected by The Guardian") +
+  theme (
+    panel.grid.major.x = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.x = element_blank()
+  ) +
+  ylab("Total Gold medals per year") +
+  coord_flip()
+  
+
+```
+
+## The US versus China
+
+```{r}
+us_china<- summer_medals %>% 
+  group_by(Year, Country) %>% 
+  filter(Year >= 1984, Country %in% c("USA", "CHN"), Medal == "Gold") %>% 
+  summarize(Total = n())
+
+ggplot(us_china, aes(x = Year, y = Total)) +
+  geom_segment(aes(x = Year, xend = Year, y = 0, yend = Total), color = "deepskyblue2") +
+  geom_point(color = "darkgoldenrod1", size = 3) +
+  scale_x_continuous(breaks = seq(1984, 2012, 4)) +
+  theme_light() +
+  labs(title = "China verus the US - Gold medals from 1984", caption = "Data collected by The Guardian") +
+  theme (
+    panel.grid.major.x = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.x = element_blank()
+  ) +
+  ylab("Total Gold medals per year") +
+  coord_flip() +
+  facet_wrap(~Country)
+
+```
+## Top 50 gold medals from 1984
+
+```{r}
+top_medals <- summer_medals %>% 
+  group_by(Country) %>% 
+  filter(Medal == "Gold", Year >=1984) %>% 
+  summarize(Total = n()) %>% 
+  arrange(-Total) %>% 
+  slice(1:30)
+  
+View(top_medals)
+```
+
+```{r}
+ggplot(top_medals, aes(x = Country, y = Total)) +
+  geom_segment(aes(x = Country, xend = Country, y = 0, yend = Total), color = "cyan4") +
+  geom_point(color = "darkorange2", size = 3) +
+  scale_color_viridis(discrete = TRUE, option = "D") +
+  theme_light() +
+  theme (
+    panel.grid.major.x = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_text(angle = 45)
+  )
+ 
+```
+
